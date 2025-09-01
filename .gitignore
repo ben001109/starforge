@@ -1,0 +1,19 @@
+# build artifacts
+/build/
+/iso/
+/*.iso
+*.o
+*.bin
+*.elf
+*.so
+*.map
+
+# editors
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
