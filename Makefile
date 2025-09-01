@@ -3,7 +3,7 @@ ARCH      := x86_64
 GNUEFI    := /usr/lib/gnu-efi
 EFIINC    := /usr/include/efi
 EFIINCS   := -I$(EFIINC) -I$(EFIINC)/$(ARCH)
-OVMF_CODE := /usr/share/OVMF/OVMF_CODE.fd
+OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE.fd
 
 BUILD     := build
 ESP_IMG   := $(BUILD)/efiboot.img
@@ -55,16 +55,32 @@ $(ISO): $(ESP_IMG)
 	    -o $(ISO) $(ISO_DIR)
 
 run: $(ISO)
-	./tools/qemu-run.sh $(ISO) || true
+		@if [ -f "$(OVMF_CODE)" ]; then \
+		./tools/qemu-run.sh $(ISO); \
+	else \
+		echo "OVMF_CODE not found: $(OVMF_CODE)"; \
+		echo "Set OVMF_CODE to the path of OVMF_CODE.fd"; \
+	fi
 
 gdb:
-	./tools/qemu-gdb.sh $(ISO)
+	@if [ -f "$(OVMF_CODE)" ]; then \
+		./tools/qemu-gdb.sh $(ISO); \
+	else \
+		echo "OVMF_CODE not found: $(OVMF_CODE)"; \
+		echo "Set OVMF_CODE to the path of OVMF_CODE.fd"; \
+	fi
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
 clean:
 	rm -rf $(BUILD) $(ISO)
+
+docker-build:
+	docker buildx build --platform linux/amd64 -t starforge-build .
+	
+docker-make:
+	docker run --rm -ti --platform=linux/amd64 -v "$(PWD)":/work -w /work starforge-build bash -lc 'make clean && make -j$$(nproc)'
 
 # ===== Packaging =====
 DIST_DIR   := dist
