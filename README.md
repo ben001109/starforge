@@ -28,3 +28,21 @@ gdb build/kernel.elf -ex "target remote :1234" -ex "b kmain" -ex "c"
 - `tools/`：啟動與 GDB 連線腳本
 - `scripts/`：打包腳本
 - `.github/workflows/ci.yml`：GitHub Actions 自動建置與打包
+
+## mac + OrbStack
+
+1. 安裝 QEMU：`brew install qemu`
+2. 切換 Docker context：`docker context use orbstack`
+3. 建置容器與專案：
+   ```bash
+   docker buildx build --platform linux/amd64 -t starforge-build .
+   docker run --rm -ti --platform=linux/amd64 -v "$(pwd)":/work -w /work starforge-build \
+     bash -lc 'make clean && make -j$(nproc)'
+   ```
+4. 設定 OVMF 路徑並執行：
+   ```bash
+   export OVMF_CODE=/opt/homebrew/share/edk2/ovmf/OVMF_CODE.fd
+   make run
+   ```
+
+> Apple Silicon 上執行 x86_64 為全模擬，速度較慢。
