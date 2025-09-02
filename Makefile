@@ -1,6 +1,17 @@
 # ==== Starforge OS (codename: Aegis-Alpha) ====
 ARCH      := x86_64
-GNUEFI    := /usr/lib/gnu-efi
+# Try to auto-detect gnu-efi install path; allow user override via GNUEFI
+GNUEFI    ?=
+GNUEFI_CAND := /usr/lib/gnu-efi /usr/lib/$(ARCH)-linux-gnu/gnu-efi /usr/lib/x86_64-linux-gnu/gnu-efi
+ifneq (,$(GNUEFI))
+  GNUEFI_DETECTED := $(GNUEFI)
+else
+  GNUEFI_DETECTED := $(firstword $(foreach p,$(GNUEFI_CAND),$(if $(wildcard $(p)/$(ARCH)/elf_$(ARCH)_efi.lds),$(p),)))
+endif
+GNUEFI := $(GNUEFI_DETECTED)
+ifeq (,$(GNUEFI))
+  $(error Unable to locate gnu-efi. Set GNUEFI=/path/to/gnu-efi or install gnu-efi)
+endif
 EFIINC    := /usr/include/efi
 EFIINCS   := -I$(EFIINC) -I$(EFIINC)/$(ARCH)
 OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE.fd

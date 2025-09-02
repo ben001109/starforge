@@ -11,3 +11,6 @@ if [[ ! -f "$OVMF_CODE" ]]; then
     echo "OVMF_CODE not found: $OVMF_CODE" >&2
   fi
   exit 1
+fi
+
+qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M -bios "$OVMF_CODE" -serial stdio -cdrom "$ISO"

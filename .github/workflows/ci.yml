@@ -12,7 +12,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y build-essential gnu-efi mtools xorriso qemu-system-x86 ovmf
+          sudo apt install -y build-essential gnu-efi mtools dosfstools xorriso qemu-system-x86 ovmf
       - name: Build ISO
         run: make
       - name: Package
