@@ -2,6 +2,8 @@
 /build/
 /iso/
 /*.iso
+/# distribution artifacts
+/dist/
 *.o
 *.bin
 *.elf

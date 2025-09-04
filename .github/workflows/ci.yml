@@ -3,18 +3,21 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ensure tags available for git describe
       - name: Install deps
         run: |
-          sudo apt update
-          sudo apt install -y build-essential gnu-efi mtools dosfstools xorriso qemu-system-x86 ovmf
+          sudo apt-get update
+          sudo apt-get install -y build-essential gnu-efi mtools dosfstools xorriso qemu-system-x86 ovmf
       - name: Build ISO
-        run: make
+        run: make -j$(nproc)
       - name: Package
         run: make dist
       - name: Upload artifacts

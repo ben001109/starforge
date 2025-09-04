@@ -1,16 +1,18 @@
 # ==== Starforge OS (codename: Aegis-Alpha) ====
 ARCH      := x86_64
-# Try to auto-detect gnu-efi install path; allow user override via GNUEFI
-GNUEFI    ?=
-GNUEFI_CAND := /usr/lib/gnu-efi /usr/lib/$(ARCH)-linux-gnu/gnu-efi /usr/lib/x86_64-linux-gnu/gnu-efi
-ifneq (,$(GNUEFI))
-  GNUEFI_DETECTED := $(GNUEFI)
-else
-  GNUEFI_DETECTED := $(firstword $(foreach p,$(GNUEFI_CAND),$(if $(wildcard $(p)/$(ARCH)/elf_$(ARCH)_efi.lds),$(p),)))
+# Detect gnu-efi artifacts (works on Ubuntu/Debian variants)
+GNUEFI_BASE_CAND := /usr/lib/gnu-efi /usr/lib/x86_64-linux-gnu/gnu-efi /usr/lib/$(ARCH)-linux-gnu/gnu-efi /usr/lib/gnuefi /usr/lib
+LDS_NAMES  := $(ARCH)/elf_$(ARCH)_efi.lds elf_$(ARCH)_efi.lds
+CRT0_NAMES := $(ARCH)/crt0-efi-$(ARCH).o crt0-efi-$(ARCH).o
+
+LDS_EFI := $(firstword $(foreach b,$(GNUEFI_BASE_CAND),$(foreach n,$(LDS_NAMES),$(wildcard $(b)/$(n)))))
+CRT0_EFI := $(firstword $(foreach b,$(GNUEFI_BASE_CAND),$(foreach n,$(CRT0_NAMES),$(wildcard $(b)/$(n)))))
+
+ifeq (,$(LDS_EFI))
+  $(error Unable to locate elf_$(ARCH)_efi.lds (install gnu-efi))
 endif
-GNUEFI := $(GNUEFI_DETECTED)
-ifeq (,$(GNUEFI))
-  $(error Unable to locate gnu-efi. Set GNUEFI=/path/to/gnu-efi or install gnu-efi)
+ifeq (,$(CRT0_EFI))
+  $(error Unable to locate crt0-efi-$(ARCH).o (install gnu-efi))
 endif
 EFIINC    := /usr/include/efi
 EFIINCS   := -I$(EFIINC) -I$(EFIINC)/$(ARCH)
@@ -23,9 +25,9 @@ ISO       := starforge.iso
 
 # flags
 CFLAGS_EFI := -DEFI_FUNCTION_WRAPPER -fno-stack-protector -fpic -fshort-wchar -mno-red-zone -ffreestanding -Wall -Wextra $(EFIINCS)
-LDS_EFI     := $(GNUEFI)/$(ARCH)/elf_$(ARCH)_efi.lds
-CRT0_EFI    := $(GNUEFI)/$(ARCH)/crt0-efi-$(ARCH).o
-LIBS_EFI    := -L$(GNUEFI) -L$(GNUEFI)/$(ARCH) -lgnuefi -lefi
+# Compose library search paths generously to cover distro layouts
+GNUEFI_LIBDIRS := $(sort $(dir $(LDS_EFI)) $(dir $(CRT0_EFI)) /usr/lib /usr/lib/$(ARCH)-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib/gnuefi)
+LIBS_EFI    := $(addprefix -L,$(GNUEFI_LIBDIRS)) -lgnuefi -lefi
 
 CFLAGS_KERN := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -O2 -Wall -Wextra
 LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
