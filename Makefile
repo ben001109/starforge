@@ -1,6 +1,7 @@
 # ==== Starforge OS (codename: Aegis-Alpha) ====
 ARCH      := x86_64
-# Detect gnu-efi artifacts (works on Ubuntu/Debian variants)
+# Detect gnu-efi artifacts (Linux distros). We no longer hard-fail at parse time;
+# the bootloader rule will check and error with guidance when actually building.
 GNUEFI_BASE_CAND := /usr/lib/gnu-efi /usr/lib/x86_64-linux-gnu/gnu-efi /usr/lib/$(ARCH)-linux-gnu/gnu-efi /usr/lib/gnuefi /usr/lib
 LDS_NAMES  := $(ARCH)/elf_$(ARCH)_efi.lds elf_$(ARCH)_efi.lds
 CRT0_NAMES := $(ARCH)/crt0-efi-$(ARCH).o crt0-efi-$(ARCH).o
@@ -8,15 +9,18 @@ CRT0_NAMES := $(ARCH)/crt0-efi-$(ARCH).o crt0-efi-$(ARCH).o
 LDS_EFI := $(firstword $(foreach b,$(GNUEFI_BASE_CAND),$(foreach n,$(LDS_NAMES),$(wildcard $(b)/$(n)))))
 CRT0_EFI := $(firstword $(foreach b,$(GNUEFI_BASE_CAND),$(foreach n,$(CRT0_NAMES),$(wildcard $(b)/$(n)))))
 
-ifeq (,$(LDS_EFI))
-  $(error Unable to locate elf_$(ARCH)_efi.lds (install gnu-efi))
-endif
-ifeq (,$(CRT0_EFI))
-  $(error Unable to locate crt0-efi-$(ARCH).o (install gnu-efi))
-endif
 EFIINC    := /usr/include/efi
 EFIINCS   := -I$(EFIINC) -I$(EFIINC)/$(ARCH)
-OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE.fd
+# OVMF firmware path; allow override via environment. Only checked when running.
+# Note: On macOS with Homebrew, OVMF often lives under share/qemu (edk2-x86_64-code.fd).
+OVMF_CANDIDATES := $(wildcard \
+  /usr/share/OVMF/OVMF_CODE.fd \
+  /usr/share/edk2-ovmf/OVMF_CODE.fd \
+  /usr/local/share/edk2-ovmf/OVMF_CODE.fd \
+  /opt/homebrew/share/edk2/ovmf/OVMF_CODE.fd \
+  /opt/homebrew/share/qemu/edk2-x86_64-code.fd \
+  /usr/local/share/qemu/edk2-x86_64-code.fd)
+OVMF_CODE ?= $(firstword $(OVMF_CANDIDATES))
 
 BUILD     := build
 ESP_IMG   := $(BUILD)/efiboot.img
@@ -38,6 +42,12 @@ all: $(ISO)
 
 # Bootloader
 $(BUILD)/BOOTX64.EFI: boot/uefi/bootloader.c boot/uefi/elf.h | $(BUILD)
+	@if [ -z "$(LDS_EFI)" ] || [ -z "$(CRT0_EFI)" ]; then \\
+	  echo "ERROR: gnu-efi not found on host."; \\
+	  echo " - Install gnu-efi (Linux) OR run: make docker-build && make docker-make"; \\
+	  echo " - Missing: elf_$(ARCH)_efi.lds=$(LDS_EFI) crt0-efi-$(ARCH).o=$(CRT0_EFI)"; \\
+	  exit 1; \\
+	fi
 	gcc $(CFLAGS_EFI) -c $< -o $(BUILD)/bootloader.o
 	ld  -nostdlib -znocombreloc -T $(LDS_EFI) -shared -Bsymbolic \
 	    $(CRT0_EFI) $(BUILD)/bootloader.o -o $(BUILD)/bootloader.so $(LIBS_EFI)
@@ -68,20 +78,10 @@ $(ISO): $(ESP_IMG)
 	    -o $(ISO) $(ISO_DIR)
 
 run: $(ISO)
-		@if [ -f "$(OVMF_CODE)" ]; then \
-		./tools/qemu-run.sh $(ISO); \
-	else \
-		echo "OVMF_CODE not found: $(OVMF_CODE)"; \
-		echo "Set OVMF_CODE to the path of OVMF_CODE.fd"; \
-	fi
+	./tools/qemu-run.sh $(ISO)
 
 gdb:
-	@if [ -f "$(OVMF_CODE)" ]; then \
-		./tools/qemu-gdb.sh $(ISO); \
-	else \
-		echo "OVMF_CODE not found: $(OVMF_CODE)"; \
-		echo "Set OVMF_CODE to the path of OVMF_CODE.fd"; \
-	fi
+	./tools/qemu-gdb.sh $(ISO)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -94,6 +94,15 @@ docker-build:
 	
 docker-make:
 	docker run --rm -ti --platform=linux/amd64 -v "$(PWD)":/work -w /work starforge-build bash -lc 'make clean && make -j$$(nproc)'
+
+# Code quality hooks (no-op by default). Create stubs if missing, then run.
+.PHONY: check
+check:
+	@mkdir -p scripts
+	@([ -f scripts/lint.sh ] || (echo '#!/usr/bin/env bash' > scripts/lint.sh && echo 'exit 0' >> scripts/lint.sh && chmod +x scripts/lint.sh))
+	@([ -f scripts/format.sh ] || (echo '#!/usr/bin/env bash' > scripts/format.sh && echo 'exit 0' >> scripts/format.sh && chmod +x scripts/format.sh))
+	@./scripts/lint.sh
+	@./scripts/format.sh
 
 # ===== Packaging =====
 DIST_DIR   := dist

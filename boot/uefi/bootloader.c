@@ -48,36 +48,132 @@ static EFI_STATUS get_gop(EFI_SYSTEM_TABLE* ST, EFI_GRAPHICS_OUTPUT_PROTOCOL** o
     return st;
 }
 
-static EFI_STATUS get_mm_and_copy(EFI_SYSTEM_TABLE* ST, VOID** map_out, UINTN* sz_out, UINTN* key_out, UINTN* desc_sz_out, UINT32* desc_ver_out) {
-    EFI_STATUS st;
-    UINTN mm_size = 0, map_key = 0, desc_size = 0;
-    UINT32 desc_ver = 0;
+static inline UINT64 align_down(UINT64 x, UINT64 a) {
+    if (a == 0) return x;
+    return x & ~(a - 1);
+}
 
-    st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &mm_size, NULL, &map_key, &desc_size, &desc_ver);
-    if (st != EFI_BUFFER_TOO_SMALL) return st;
+static inline UINT64 align_up(UINT64 x, UINT64 a) {
+    if (a == 0) return x;
+    return (x + a - 1) & ~(a - 1);
+}
 
-    mm_size += 4096;
-    VOID* buf;
-    st = uefi_call_wrapper(ST->BootServices->AllocatePool, 3, EfiLoaderData, mm_size, &buf);
-    if (EFI_ERROR(st)) return st;
+static EFI_STATUS load_elf_segment(EFI_SYSTEM_TABLE* ST, void* kbuf, Elf64_Phdr* seg, UINT16 index) {
+    if (seg->p_type != PT_LOAD) return EFI_SUCCESS;
 
-    st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &mm_size, buf, &map_key, &desc_size, &desc_ver);
-    if (EFI_ERROR(st)) return st;
+    UINT64 base = seg->p_paddr ? seg->p_paddr : seg->p_vaddr;
+    UINT64 memsz = seg->p_memsz;
+    UINT64 filesz = seg->p_filesz;
+    UINT64 palign = seg->p_align ? seg->p_align : 4096; // default alignment
+    // TODO: strict page alignment policy — optionally align only when p_align>0.
 
-    UINTN pages = (mm_size + 4095) / 4096;
-    EFI_PHYSICAL_ADDRESS dest = 0;
-    st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &dest);
-    if (EFI_ERROR(st)) return st;
+    // Ensure at least page alignment for AllocatePages
+    if (palign < 4096) palign = 4096;
+    // Guard: filesz should not exceed memsz
+    if (filesz > memsz) filesz = memsz;
 
-    CopyMem((void*)(UINTN)dest, buf, mm_size);
-    uefi_call_wrapper(ST->BootServices->FreePool, 1, buf);
+    UINT64 aligned_start = align_down(base, palign);
+    UINT64 offset_into_segment = base - aligned_start;
+    UINT64 total_bytes = offset_into_segment + memsz;
 
-    *map_out = (void*)(UINTN)dest;
-    *sz_out = mm_size;
-    *key_out = map_key;
-    *desc_sz_out = desc_size;
-    *desc_ver_out = desc_ver;
+    UINTN pages = (UINTN)align_up(total_bytes, 4096) / 4096;
+    EFI_PHYSICAL_ADDRESS alloc = (EFI_PHYSICAL_ADDRESS)aligned_start;
+    EFI_STATUS st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAddress, EfiLoaderData, pages, &alloc);
+    if (EFI_ERROR(st)) {
+        Print(L"[BL] AllocatePages seg %d @%lx size=%lx failed: %r\n", index, aligned_start, (UINT64)pages*4096, st);
+        return st;
+    }
+
+    // Zero-fill the entire allocated span, then copy file contents to the intended base
+    SetMem((void*)(UINTN)aligned_start, (UINTN)pages * 4096, 0);
+    CopyMem((void*)(UINTN)base, (UINT8*)kbuf + seg->p_offset, (UINTN)filesz);
+    if (memsz > filesz) {
+        // 明確零填充尾段 [filesz, memsz)
+        SetMem((void*)((UINTN)base + (UINTN)filesz), (UINTN)(memsz - filesz), 0);
+    }
+
+    Print(L"[BL] load seg %d base=%lx align=%lx pages=%lx memsz=%lx filesz=%lx\n",
+          index, base, palign, (UINT64)pages, (UINT64)memsz, (UINT64)filesz);
     return EFI_SUCCESS;
+}
+
+static EFI_STATUS exit_boot_services_with_retry(
+    EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* ST,
+    EFI_PHYSICAL_ADDRESS* out_map_pa,
+    UINTN* out_map_size,
+    UINTN* out_desc_size,
+    UINT32* out_desc_ver) {
+    // TODO: make retry attempts configurable (currently single retry, 2 attempts total)
+    EFI_STATUS st;
+    UINTN key = 0, desc_size = 0; UINT32 desc_ver = 0;
+
+    EFI_PHYSICAL_ADDRESS map_pa; UINTN pages; UINTN mm_size; EFI_STATUS ex;
+
+    // Attempt 1: allocate with +4096 slack
+    {
+        UINTN req = 0; key = 0; desc_size = 0; desc_ver = 0;
+        st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &req, NULL, &key, &desc_size, &desc_ver);
+        if (st != EFI_BUFFER_TOO_SMALL) return st;
+
+        UINTN slack = desc_size + 4096; // ensure >= +4096 extra
+        pages = (req + slack + 4095) / 4096;
+        map_pa = 0;
+        st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &map_pa);
+        if (EFI_ERROR(st)) return st;
+
+        while (1) {
+            mm_size = pages * 4096;
+            st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &mm_size, (VOID*)(UINTN)map_pa, &key, &desc_size, &desc_ver);
+            if (st == EFI_BUFFER_TOO_SMALL) {
+                uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages);
+                pages = (mm_size + desc_size + slack + 4095) / 4096;
+                st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &map_pa);
+                if (EFI_ERROR(st)) return st;
+                continue;
+            }
+            if (EFI_ERROR(st)) { uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages); return st; }
+            break;
+        }
+
+        ex = uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, key);
+        if (ex == EFI_SUCCESS) { *out_map_pa = map_pa; *out_map_size = mm_size; *out_desc_size = desc_size; *out_desc_ver = desc_ver; return EFI_SUCCESS; }
+        // Free buffer to avoid leak before retry
+        uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages);
+        if (ex != EFI_INVALID_PARAMETER) { /* TODO: error code table for diagnostics */ return ex; }
+    }
+
+    // Attempt 2: retry once, allocate with larger slack (>= +4096)
+    {
+        UINTN req = 0; key = 0; desc_size = 0; desc_ver = 0;
+        st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &req, NULL, &key, &desc_size, &desc_ver);
+        if (st != EFI_BUFFER_TOO_SMALL) return st;
+
+        UINTN slack = desc_size + 8192; // larger slack for retry
+        pages = (req + slack + 4095) / 4096;
+        map_pa = 0;
+        st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &map_pa);
+        if (EFI_ERROR(st)) return st;
+
+        while (1) {
+            mm_size = pages * 4096;
+            st = uefi_call_wrapper(ST->BootServices->GetMemoryMap, 5, &mm_size, (VOID*)(UINTN)map_pa, &key, &desc_size, &desc_ver);
+            if (st == EFI_BUFFER_TOO_SMALL) {
+                uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages);
+                pages = (mm_size + desc_size + slack + 4095) / 4096;
+                st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages, &map_pa);
+                if (EFI_ERROR(st)) return st;
+                continue;
+            }
+            if (EFI_ERROR(st)) { uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages); return st; }
+            break;
+        }
+
+        ex = uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, key);
+        if (ex == EFI_SUCCESS) { *out_map_pa = map_pa; *out_map_size = mm_size; *out_desc_size = desc_size; *out_desc_ver = desc_ver; return EFI_SUCCESS; }
+        // Final failure after one retry
+        uefi_call_wrapper(ST->BootServices->FreePages, 2, map_pa, pages);
+        return ex;
+    }
 }
 
 typedef void (*KernelEntry)(BootInfo*);
@@ -95,28 +191,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST) {
     Print(L"[BL] ELF phnum=%d\n", eh->e_phnum);
 
     for (UINT16 i=0;i<eh->e_phnum;i++) {
-        if (ph[i].p_type != PT_LOAD) continue;
-        UINT64 paddr = ph[i].p_paddr ? ph[i].p_paddr : ph[i].p_vaddr;
-        UINTN  memsz = (UINTN)ph[i].p_memsz;
-        UINTN  filesz= (UINTN)ph[i].p_filesz;
-        UINTN  pages = (memsz + 4095) / 4096;
-        EFI_PHYSICAL_ADDRESS alloc = paddr;
-
-        st = uefi_call_wrapper(ST->BootServices->AllocatePages, 4, AllocateAddress, EfiLoaderData, pages, &alloc);
-        if (EFI_ERROR(st)) { Print(L"[BL] AllocatePages @%lx failed: %r\n", paddr, st); return st; }
-
-        SetMem((void*)(UINTN)paddr, memsz, 0);
-        CopyMem((void*)(UINTN)paddr, (UINT8*)kbuf + ph[i].p_offset, filesz);
-        Print(L"[BL] load seg %d paddr=%lx memsz=%lx filesz=%lx\n", i, paddr, (UINT64)memsz, (UINT64)filesz);
+        st = load_elf_segment(ST, kbuf, &ph[i], i);
+        if (EFI_ERROR(st)) return st;
     }
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = NULL;
     st = get_gop(ST, &gop);
     if (EFI_ERROR(st)) { Print(L"[BL] GOP not found: %r\n", st); return st; }
-
-    VOID* mm; UINTN mmsz, key, dsz; UINT32 dver;
-    st = get_mm_and_copy(ST, &mm, &mmsz, &key, &dsz, &dver);
-    if (EFI_ERROR(st)) { Print(L"[BL] get memory map failed: %r\n", st); return st; }
 
     BootInfo* bi = NULL;
     EFI_PHYSICAL_ADDRESS bi_pa = 0;
@@ -132,15 +213,16 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST) {
     bi->fb_bpp    = 32;
     bi->fb_format = (gop->Mode->Info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor) ? 1 : 0;
 
-    bi->mmap         = (uint64_t)(UINTN)mm;
-    bi->mmap_size    = mmsz;
-    bi->mmap_desc_size = dsz;
-    bi->mmap_desc_ver  = dver;
+    // Acquire memory map and ExitBootServices with robust retry. The map buffer is physically
+    // backed and passed to the kernel in BootInfo.
+    EFI_PHYSICAL_ADDRESS map_pa = 0; UINTN mm_size = 0, desc_size = 0; UINT32 desc_ver = 0;
+    st = exit_boot_services_with_retry(ImageHandle, ST, &map_pa, &mm_size, &desc_size, &desc_ver);
+    if (EFI_ERROR(st)) { Print(L"[BL] ExitBootServices failed after retry: %r\n", st); return st; }
 
-    st = uefi_call_wrapper(ST->BootServices->ExitBootServices, 2, ImageHandle, key);
-    if (EFI_ERROR(st)) {
-        return st;
-    }
+    bi->mmap            = (uint64_t)(UINTN)map_pa;
+    bi->mmap_size       = (uint64_t)mm_size;
+    bi->mmap_desc_size  = (uint64_t)desc_size;
+    bi->mmap_desc_ver   = (uint32_t)desc_ver;
 
     KernelEntry entry = (KernelEntry)(eh->e_entry);
     entry(bi);

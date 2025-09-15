@@ -12,6 +12,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # ensure tags available for git describe
+      - name: Tool versions
+        run: |
+          gcc --version || true
+          ld --version || true
+          objcopy --version || true
       - name: Install deps
         run: |
           sudo apt-get update
@@ -20,8 +25,16 @@ jobs:
         run: make -j$(nproc)
       - name: Package
         run: make dist
+      - name: Set artifact name
+        id: name
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          UTC_DATE=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "utc_date=$UTC_DATE" >> "$GITHUB_OUTPUT"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: starforge-${{ github.sha }}
+          name: starforge-${{ steps.name.outputs.short_sha }}-${{ steps.name.outputs.utc_date }}
           path: dist/*
