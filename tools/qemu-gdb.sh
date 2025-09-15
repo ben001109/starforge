@@ -53,14 +53,16 @@ if [[ ! -f "${OVMF_CODE:-}" ]]; then
   exit 1
 fi
 
-VARS_ARG=()
+# Build command in array to avoid unbound issues
+cmd=(qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M \
+  -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" )
+
 if [[ -n "${OVMF_VARS:-}" && -f "${OVMF_VARS}" ]]; then
   mkdir -p build
   cp -f "${OVMF_VARS}" build/OVMF_VARS.fd
-  VARS_ARG=(-drive if=pflash,format=raw,file="$(pwd)/build/OVMF_VARS.fd")
+  cmd+=( -drive if=pflash,format=raw,file="$(pwd)/build/OVMF_VARS.fd" )
 fi
 
-exec qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M \
-  -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" \
-  "${VARS_ARG[@]}" \
-  -serial stdio -cdrom "${ISO}" -S -s
+cmd+=( -serial stdio -cdrom "${ISO}" -S -s )
+
+exec "${cmd[@]}"
