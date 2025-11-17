@@ -43,9 +43,9 @@ all: $(ISO)
 # Bootloader
 $(BUILD)/BOOTX64.EFI: boot/uefi/bootloader.c boot/uefi/elf.h | $(BUILD)
 	@if [ -z "$(LDS_EFI)" ] || [ -z "$(CRT0_EFI)" ]; then \
-	  echo "ERROR: gnu-efi not found on host."; \\
-	  echo " - Install gnu-efi (Linux) OR run: make docker-build && make docker-make"; \\
-	  echo " - Missing: elf_$(ARCH)_efi.lds=$(LDS_EFI) crt0-efi-$(ARCH).o=$(CRT0_EFI)"; \\
+	  echo "ERROR: gnu-efi not found on host."; \
+	  echo " - Install gnu-efi (Linux) OR run: make docker-build && make docker-make"; \
+	  echo " - Missing: elf_$(ARCH)_efi.lds=$(LDS_EFI) crt0-efi-$(ARCH).o=$(CRT0_EFI)"; \
 	  exit 1; \
 	fi
 	gcc $(CFLAGS_EFI) -c $< -o $(BUILD)/bootloader.o
