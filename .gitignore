@@ -19,6 +19,9 @@
 !.vscode/settings.json
 !.vscode/launch.json
 
+# worktrees
+.worktrees/
+
 # OS cruft
 .DS_Store
 Thumbs.db
