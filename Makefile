@@ -1,5 +1,5 @@
 # ==== Starforge OS (codename: Aegis-Alpha) ====
-ARCH      := x86_64
+ARCH      ?= x86_64
 # Detect gnu-efi artifacts (Linux distros). We no longer hard-fail at parse time;
 # the bootloader rule will check and error with guidance when actually building.
 GNUEFI_BASE_CAND := /usr/lib/gnu-efi /usr/lib/x86_64-linux-gnu/gnu-efi /usr/lib/$(ARCH)-linux-gnu/gnu-efi /usr/lib/gnuefi /usr/lib
@@ -170,6 +170,12 @@ check:
 	@([ -f scripts/format.sh ] || (echo '#!/usr/bin/env bash' > scripts/format.sh && echo 'exit 0' >> scripts/format.sh && chmod +x scripts/format.sh))
 	@./scripts/lint.sh
 	@./scripts/format.sh
+	@if [ "$(ARCH)" = "aarch64" ]; then \
+	  echo "Running AArch64-specific checks..."; \
+	  $(MAKE) check-aarch64-toolchain; \
+	  ./scripts/test-aarch64-uefi.sh; \
+	  ./scripts/test-aarch64-bare.sh; \
+	fi
 
 # ===== Packaging =====
 DIST_DIR   := dist

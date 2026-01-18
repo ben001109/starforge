@@ -26,3 +26,7 @@
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# generated script stubs
+scripts/lint.sh
+scripts/format.sh
