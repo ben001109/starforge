@@ -22,6 +22,15 @@ OVMF_CANDIDATES := $(wildcard \
   /usr/local/share/qemu/edk2-x86_64-code.fd)
 OVMF_CODE ?= $(firstword $(OVMF_CANDIDATES))
 
+# AArch64 UEFI firmware path
+AAVMF_CANDIDATES := $(wildcard \
+  /usr/share/AAVMF/AAVMF_CODE.fd \
+  /usr/share/edk2-aarch64/QEMU_EFI.fd \
+  /usr/local/share/edk2-aarch64/QEMU_EFI.fd \
+  /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+  /usr/local/share/qemu/edk2-aarch64-code.fd)
+AAVMF_CODE ?= $(firstword $(AAVMF_CANDIDATES))
+
 BUILD     := build
 ESP_IMG   := $(BUILD)/efiboot.img
 ISO_DIR   := $(BUILD)/iso
@@ -36,12 +45,16 @@ LIBS_EFI    := $(addprefix -L,$(GNUEFI_LIBDIRS)) -lgnuefi -lefi
 CFLAGS_KERN := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -O2 -Wall -Wextra
 LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
 
+<<<<<<< HEAD
 .PHONY: all clean run gdb iso dist dist-src dist-bin print-dist test test-build test-boot test-unit check-aarch64-toolchain
+=======
+.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist check-aarch64-toolchain aarch64-iso run-aarch64
+>>>>>>> 4ba536a (Task 3: Add AArch64 UEFI bootloader skeleton)
 
 test-unit:
 	./scripts/tests/unit.sh
 
-AARCH64_CC ?= $(firstword $(foreach c,aarch64-linux-gnu-gcc aarch64-elf-gcc,$(shell command -v $(c) 2>/dev/null)))
+AARCH64_CC ?= $(firstword $(foreach c,clang aarch64-linux-gnu-gcc aarch64-elf-gcc,$(shell command -v $(c) 2>/dev/null)))
 
 check-aarch64-toolchain:
 	@if [ -z "$(AARCH64_CC)" ]; then \
@@ -94,6 +107,35 @@ run: $(ISO)
 
 gdb:
 	./tools/qemu-gdb.sh $(ISO)
+
+# AArch64 targets
+aarch64-iso: starforge-aarch64.iso
+
+starforge-aarch64.iso: $(BUILD)/BOOTAA64.EFI
+	dd if=/dev/zero of=$@ bs=1M count=16 status=none
+	mkfs.vfat -F 32 $@
+	mmd -i $@ ::/EFI ::/EFI/BOOT
+	mcopy -i $@ $(BUILD)/BOOTAA64.EFI ::/EFI/BOOT/
+
+$(BUILD)/BOOTAA64.EFI: boot/uefi-aarch64/bootloader.c boot/uefi-aarch64/elf.h | $(BUILD)
+	@if [ -z "$(AARCH64_CC)" ]; then \
+	  echo "ERROR: aarch64 toolchain not found."; \
+	  echo " - Install clang (macOS), aarch64-linux-gnu-gcc (Linux), or aarch64-elf-gcc"; \
+	  echo " - Run: make check-aarch64-toolchain"; \
+	  exit 1; \
+	fi
+	@echo "Using $(AARCH64_CC) for AArch64 build"
+	$(AARCH64_CC) -target aarch64-unknown-none -ffreestanding -fno-stack-protector -fno-builtin -c $< -o $(BUILD)/bootloader-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -e _start $(BUILD)/bootloader-aarch64.o -o $(BUILD)/bootloader-aarch64.elf
+	objcopy -O binary $(BUILD)/bootloader-aarch64.elf $(BUILD)/BOOTAA64.EFI
+
+run-aarch64: starforge-aarch64.iso
+	@if [ -z "$(AAVMF_CODE)" ]; then \
+	  echo "ERROR: AAVMF firmware not found."; \
+	  echo " - Install edk2-aarch64 or QEMU UEFI firmware"; \
+	  exit 1; \
+	fi
+	qemu-system-aarch64 -M virt -cpu cortex-a57 -m 512M -nographic -drive if=virtio,file=starforge-aarch64.iso,format=raw -bios "$(AAVMF_CODE)"
 
 $(BUILD):
 	mkdir -p $(BUILD)
