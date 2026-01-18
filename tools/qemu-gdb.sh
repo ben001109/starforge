@@ -54,7 +54,7 @@ if [[ ! -f "${OVMF_CODE:-}" ]]; then
 fi
 
 # Build command in array to avoid unbound issues
-cmd=(qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M \
+cmd=(qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M -boot order=d,menu=on \
   -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" )
 
 if [[ -n "${OVMF_VARS:-}" && -f "${OVMF_VARS}" ]]; then

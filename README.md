@@ -6,7 +6,7 @@
     安裝相依（Debian/Ubuntu）：
     ```bash
     sudo apt update
-    sudo apt install -y build-essential gnu-efi mtools xorriso qemu-system-x86 ovmf
+    sudo apt install -y build-essential gnu-efi mtools dosfstools xorriso qemu-system-x86 ovmf
     ```
     建置與執行：
     ```bash
