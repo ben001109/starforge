@@ -33,12 +33,12 @@ echo "✓ Makefile has AArch64 targets"
 
 # Check bootloader code for expected marker
 echo "Checking bootloader code..."
-if ! grep -q "AARCH64 UEFI OK" boot/uefi-aarch64/bootloader.c; then
-    echo "ERROR: bootloader.c missing 'AARCH64 UEFI OK' marker"
+if ! grep -q "AARCH64 KERNEL OK" boot/uefi-aarch64/bootloader.c; then
+    echo "ERROR: bootloader.c missing 'AARCH64 KERNEL OK' marker"
     exit 1
 fi
 
-echo "✓ Bootloader contains 'AARCH64 UEFI OK' marker"
+echo "✓ Bootloader contains 'AARCH64 KERNEL OK' marker"
 
 # Check for AArch64 toolchain
 if ! command -v aarch64-linux-gnu-gcc &>/dev/null && \
@@ -116,14 +116,14 @@ OUTPUT=$(timeout 5s qemu-system-aarch64 \
     -bios "$AAVMF_CODE" \
     2>&1 || true)
 
-# Check for expected marker
-if echo "$OUTPUT" | grep -q "AARCH64 UEFI OK"; then
-    echo "✓ TEST PASSED: Found 'AARCH64 UEFI OK' in output"
+# Check for expected markers
+if echo "$OUTPUT" | grep -q "AARCH64 KERNEL OK"; then
+    echo "✓ TEST PASSED: Found 'AARCH64 KERNEL OK' in output"
     echo "Sample output:"
     echo "$OUTPUT" | tail -20
     exit 0
 else
-    echo "✗ TEST FAILED: 'AARCH64 UEFI OK' not found"
+    echo "✗ TEST FAILED: 'AARCH64 KERNEL OK' not found"
     echo "QEMU output:"
     echo "$OUTPUT"
     exit 1
