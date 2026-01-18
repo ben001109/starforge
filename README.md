@@ -19,7 +19,7 @@
     gdb build/kernel.elf -ex "target remote :1234" -ex "b kmain" -ex "c"
     ```
 ## AArch64 (QEMU virt)
-- Install cross-compiler: `aarch64-linux-gnu-gcc` (preferred) or `aarch64-elf-gcc`
+- 安裝交叉編譯器: `aarch64-linux-gnu-gcc` (優先) 或 `aarch64-elf-gcc`
 - QEMU: `qemu-system-aarch64`
 - Firmware: AAVMF (edk2)
 
