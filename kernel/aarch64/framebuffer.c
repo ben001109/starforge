@@ -1,9 +1,5 @@
 #include "framebuffer.h"
 
-static inline uint32_t pack_rgb(uint8_t r, uint8_t g, uint8_t b) {
-    return (r << 16) | (g << 8) | b;
-}
-
 void fb_clear(Framebuffer* fb, uint32_t color) {
     uint32_t* pixels = (uint32_t*)(uintptr_t)fb->base;
     uint32_t pitch_px = fb->pitch / 4;

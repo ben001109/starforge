@@ -45,11 +45,7 @@ LIBS_EFI    := $(addprefix -L,$(GNUEFI_LIBDIRS)) -lgnuefi -lefi
 CFLAGS_KERN := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -O2 -Wall -Wextra
 LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
 
-<<<<<<< HEAD
-.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist test test-build test-boot test-unit check-aarch64-toolchain
-=======
-.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist check-aarch64-toolchain aarch64-iso run-aarch64
->>>>>>> 4ba536a (Task 3: Add AArch64 UEFI bootloader skeleton)
+.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist check-aarch64-toolchain aarch64-iso run-aarch64 build/kernel-bare-aarch64.elf
 
 test-unit:
 	./scripts/tests/unit.sh
@@ -136,6 +132,15 @@ $(BUILD)/kernel-aarch64.elf: kernel/main.c kernel/util.c kernel/aarch64/uart.c k
 	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/framebuffer.c -o $(BUILD)/framebuffer-aarch64.o
 	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/main.c -o $(BUILD)/main-aarch64.o
 	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -T kernel/linker.ld $(BUILD)/util-aarch64.o $(BUILD)/uart-aarch64.o $(BUILD)/framebuffer-aarch64.o $(BUILD)/main-aarch64.o -o $(BUILD)/kernel-aarch64.elf
+
+$(BUILD)/kernel-bare-aarch64.elf: kernel/main.c kernel/aarch64/uart.c kernel/aarch64/framebuffer.c kernel/aarch64/dtb.c kernel/aarch64/dtb_boot.c kernel/aarch64/entry.S kernel/bootinfo.h kernel/linker-aarch64-bare.ld | $(BUILD)
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/uart.c -o $(BUILD)/uart-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/framebuffer.c -o $(BUILD)/framebuffer-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/dtb.c -o $(BUILD)/dtb-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/dtb_boot.c -o $(BUILD)/dtb_boot-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/main.c -o $(BUILD)/main-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/entry.S -o $(BUILD)/entry-bare-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -T kernel/linker-aarch64-bare.ld $(BUILD)/uart-bare-aarch64.o $(BUILD)/framebuffer-bare-aarch64.o $(BUILD)/dtb-bare-aarch64.o $(BUILD)/dtb_boot-bare-aarch64.o $(BUILD)/main-bare-aarch64.o $(BUILD)/entry-bare-aarch64.o -o $(BUILD)/kernel-bare-aarch64.elf
 
 run-aarch64: starforge-aarch64.iso
 	@if [ -z "$(AAVMF_CODE)" ]; then \
