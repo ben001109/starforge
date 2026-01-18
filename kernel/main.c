@@ -18,11 +18,31 @@ void serial_write(const char* s);
 
 static inline uint32_t pack_rgb(uint8_t r,uint8_t g,uint8_t b){ return (r<<16)|(g<<8)|b; }
 
+#ifdef __aarch64__
+#include "aarch64/framebuffer.h"
+#endif
+
 __attribute__((noreturn))
 void kmain(BootInfo* bi) {
     serial_write("[KERNEL] hello from Starforge kernel!\n");
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    if (bi->fb_base != 0) {
+        Framebuffer fb = {
+            .base = bi->fb_base,
+            .width = bi->fb_width,
+            .height = bi->fb_height,
+            .pitch = bi->fb_pitch,
+            .bpp = bi->fb_bpp
+        };
+        
+        serial_write("[KERNEL] drawing framebuffer test pattern\n");
+        fb_draw_test_pattern(&fb);
+        serial_write("AARCH64 FB OK\n");
+    } else {
+        serial_write("[KERNEL] no framebuffer available\n");
+    }
+#else
     uint32_t* fb = (uint32_t*)(uintptr_t)bi->fb_base;
     uint32_t pitch_px = bi->fb_pitch / 4;
     uint32_t color = bi->fb_format ? pack_rgb(0x20,0x20,0xC0) : pack_rgb(0xC0,0x20,0x20);

@@ -130,11 +130,12 @@ $(BUILD)/BOOTAA64.EFI: boot/uefi-aarch64/bootloader.c boot/uefi-aarch64/elf.h | 
 	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -e efi_main $(BUILD)/bootloader-aarch64.o -o $(BUILD)/bootloader-aarch64.elf
 	objcopy -O binary $(BUILD)/bootloader-aarch64.elf $(BUILD)/BOOTAA64.EFI
 
-$(BUILD)/kernel-aarch64.elf: kernel/main.c kernel/util.c kernel/aarch64/uart.c kernel/bootinfo.h kernel/linker.ld | $(BUILD)
+$(BUILD)/kernel-aarch64.elf: kernel/main.c kernel/util.c kernel/aarch64/uart.c kernel/aarch64/framebuffer.c kernel/bootinfo.h kernel/linker.ld | $(BUILD)
 	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/util.c -o $(BUILD)/util-aarch64.o
 	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/uart.c -o $(BUILD)/uart-aarch64.o
+	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/aarch64/framebuffer.c -o $(BUILD)/framebuffer-aarch64.o
 	$(AARCH64_CC) -target aarch64-unknown-none -c $(CFLAGS_KERN) kernel/main.c -o $(BUILD)/main-aarch64.o
-	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -T kernel/linker.ld $(BUILD)/util-aarch64.o $(BUILD)/uart-aarch64.o $(BUILD)/main-aarch64.o -o $(BUILD)/kernel-aarch64.elf
+	$(AARCH64_CC) -target aarch64-unknown-none -nostdlib -T kernel/linker.ld $(BUILD)/util-aarch64.o $(BUILD)/uart-aarch64.o $(BUILD)/framebuffer-aarch64.o $(BUILD)/main-aarch64.o -o $(BUILD)/kernel-aarch64.elf
 
 run-aarch64: starforge-aarch64.iso
 	@if [ -z "$(AAVMF_CODE)" ]; then \

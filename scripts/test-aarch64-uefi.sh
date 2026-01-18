@@ -118,12 +118,22 @@ OUTPUT=$(timeout 5s qemu-system-aarch64 \
 
 # Check for expected markers
 if echo "$OUTPUT" | grep -q "AARCH64 KERNEL OK"; then
-    echo "✓ TEST PASSED: Found 'AARCH64 KERNEL OK' in output"
+    echo "✓ BOOTLOADER OK: Found 'AARCH64 KERNEL OK' in output"
+else
+    echo "✗ TEST FAILED: 'AARCH64 KERNEL OK' not found"
+    echo "QEMU output:"
+    echo "$OUTPUT"
+    exit 1
+fi
+
+# Check for framebuffer test marker when GOP is available
+if echo "$OUTPUT" | grep -q "AARCH64 FB OK"; then
+    echo "✓ FRAMEBUFFER OK: Found 'AARCH64 FB OK' in output"
     echo "Sample output:"
     echo "$OUTPUT" | tail -20
     exit 0
 else
-    echo "✗ TEST FAILED: 'AARCH64 KERNEL OK' not found"
+    echo "✗ TEST FAILED: 'AARCH64 FB OK' not found"
     echo "QEMU output:"
     echo "$OUTPUT"
     exit 1
