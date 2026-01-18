@@ -18,6 +18,11 @@
     # 另開一個終端
     gdb build/kernel.elf -ex "target remote :1234" -ex "b kmain" -ex "c"
     ```
+## AArch64 (QEMU virt)
+- Install cross-compiler: `aarch64-linux-gnu-gcc` (preferred) or `aarch64-elf-gcc`
+- QEMU: `qemu-system-aarch64`
+- Firmware: AAVMF (edk2)
+
 ## 目錄結構
     - `boot/uefi/`：自製 UEFI Bootloader（讀取 `kernel.elf`、傳遞 BootInfo、ExitBootServices）
     - `kernel/`：最小核心（序列輸出、幀緩衝上色）

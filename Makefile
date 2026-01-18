@@ -36,20 +36,19 @@ LIBS_EFI    := $(addprefix -L,$(GNUEFI_LIBDIRS)) -lgnuefi -lefi
 CFLAGS_KERN := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -O2 -Wall -Wextra
 LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
 
-.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist test test-build test-boot test-unit
-
-all: $(ISO)
-
-test: test-build test-boot test-unit
-
-test-build:
-	./scripts/tests/build.sh
-
-test-boot:
-	./scripts/tests/boot.sh
+.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist test test-build test-boot test-unit check-aarch64-toolchain
 
 test-unit:
 	./scripts/tests/unit.sh
+
+AARCH64_CC ?= $(firstword $(foreach c,aarch64-linux-gnu-gcc aarch64-elf-gcc,$(shell command -v $(c) 2>/dev/null)))
+
+check-aarch64-toolchain:
+	@if [ -z "$(AARCH64_CC)" ]; then \
+	  echo "ERROR: aarch64 toolchain not found."; \
+	  echo " - Install aarch64-linux-gnu-gcc or aarch64-elf-gcc"; \
+	  exit 1; \
+	fi
 
 # Bootloader
 $(BUILD)/BOOTX64.EFI: boot/uefi/bootloader.c boot/uefi/elf.h | $(BUILD)
