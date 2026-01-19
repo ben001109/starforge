@@ -64,7 +64,7 @@ $(BUILD)/kernel.elf: kernel/main.c kernel/util.c kernel/bootinfo.h kernel/linker
 # ESP (FAT)
 $(ESP_IMG): $(BUILD)/BOOTX64.EFI $(BUILD)/kernel.elf | $(BUILD)
 	dd if=/dev/zero of=$(ESP_IMG) bs=1M count=16 status=none
-	mkfs.vfat -F 32 $(ESP_IMG)
+	mkfs.vfat -F 16 $(ESP_IMG)
 	mmd   -i $(ESP_IMG) ::/EFI ::/EFI/BOOT
 	mcopy -i $(ESP_IMG) $(BUILD)/BOOTX64.EFI ::/EFI/BOOT/
 	mcopy -i $(ESP_IMG) $(BUILD)/kernel.elf   ::/
@@ -73,6 +73,8 @@ $(ESP_IMG): $(BUILD)/BOOTX64.EFI $(BUILD)/kernel.elf | $(BUILD)
 $(ISO): $(ESP_IMG)
 	mkdir -p $(ISO_DIR)/EFI
 	cp $(ESP_IMG) $(ISO_DIR)/EFI/efiboot.img
+	mkdir -p $(ISO_DIR)/EFI/BOOT
+	cp $(BUILD)/BOOTX64.EFI $(ISO_DIR)/EFI/BOOT/BOOTX64.EFI
 	xorriso -as mkisofs -R -J -V "STARFORGE" \
 	    -e EFI/efiboot.img -no-emul-boot \
 	    -o $(ISO) $(ISO_DIR)
@@ -93,7 +95,7 @@ docker-build:
 	docker buildx build --platform linux/amd64 -t starforge-build .
 	
 docker-make:
-	docker run --rm -ti --platform=linux/amd64 -v "$(PWD)":/work -w /work starforge-build bash -lc 'make clean && make -j$$(nproc)'
+	docker run --rm --platform=linux/amd64 -v "$(PWD)":/work -w /work starforge-build bash -lc 'make clean && make -j$$(nproc)'
 
 # Code quality hooks (no-op by default). Create stubs if missing, then run.
 .PHONY: check

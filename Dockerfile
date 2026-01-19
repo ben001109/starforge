@@ -6,6 +6,7 @@ RUN apt-get update && \
         mtools \
         xorriso \
         qemu-system-x86 \
-        git && \
+        git \
+        dosfstools && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /work

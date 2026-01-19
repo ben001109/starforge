@@ -57,7 +57,7 @@ if [[ ! -f "${OVMF_CODE:-}" ]]; then
 fi
 
 # Build command line using an array to avoid unbound expansion
-cmd=(qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M \
+cmd=(qemu-system-x86_64 -machine q35 -cpu qemu64 -m 512M -boot order=d,menu=on \
   -drive if=pflash,format=raw,readonly=on,file="${OVMF_CODE}" )
 
 # Prepare writable copy of VARS if available

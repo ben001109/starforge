@@ -2,7 +2,7 @@
 #include "bootinfo.h"
 
 void serial_write(const char* s);
-void halt_forever(void);
+__attribute__((noreturn)) void halt_forever(void);
 void *memset(void *s, int c, unsigned long n);
 
 static inline uint32_t pack_rgb(uint8_t r,uint8_t g,uint8_t b){ return (r<<16)|(g<<8)|b; }
