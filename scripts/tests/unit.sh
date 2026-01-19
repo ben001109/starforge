@@ -3,7 +3,7 @@ set -euo pipefail
 
 . "$(dirname "$0")/common.sh"
 
-TEST_LOG_DIR=${TEST_LOG_DIR:-build/test-logs}
+TEST_LOG_DIR=${TEST_LOG_DIR:-test-logs}
 
 log "unit: build"
 command -v docker >/dev/null 2>&1 || fail "missing command: docker"

@@ -1,5 +1,6 @@
 # build artifacts
 /build/
+/test-logs/
 /iso/
 /*.iso
 /# distribution artifacts

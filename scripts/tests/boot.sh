@@ -23,8 +23,8 @@ require_cmd qemu-system-x86_64
 require_env OVMF_CODE
 
 log "boot: qemu"
-mkdir -p "${PROJECT_ROOT}/build/test-logs"
-log_file="${PROJECT_ROOT}/build/test-logs/boot.log"
+mkdir -p "${PROJECT_ROOT}/test-logs"
+log_file="${PROJECT_ROOT}/test-logs/boot.log"
 
 run_timeout() {
   local timeout="$1"; shift

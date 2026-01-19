@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-LOG_DIR="${PROJECT_ROOT}/build/test-logs"
+LOG_DIR="${PROJECT_ROOT}/test-logs"
 LOG_FILE="${LOG_DIR}/build.log"
 ISO_FILE="${PROJECT_ROOT}/starforge.iso"
 
