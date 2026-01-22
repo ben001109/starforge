@@ -47,6 +47,16 @@ LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
 
 .PHONY: all clean run gdb iso dist dist-src dist-bin print-dist check-aarch64-toolchain aarch64-iso run-aarch64 build/kernel-bare-aarch64.elf
 
+all: $(ISO)
+
+test: test-build test-boot test-unit
+
+test-build:
+	./scripts/tests/build.sh
+
+test-boot:
+	./scripts/tests/boot.sh
+
 test-unit:
 	./scripts/tests/unit.sh
 
