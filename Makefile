@@ -36,9 +36,20 @@ LIBS_EFI    := $(addprefix -L,$(GNUEFI_LIBDIRS)) -lgnuefi -lefi
 CFLAGS_KERN := -ffreestanding -fno-stack-protector -fno-pic -mno-red-zone -O2 -Wall -Wextra
 LDFLAGS_KERN:= -T kernel/linker.ld -nostdlib
 
-.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist
+.PHONY: all clean run gdb iso dist dist-src dist-bin print-dist test test-build test-boot test-unit
 
 all: $(ISO)
+
+test: test-build test-boot test-unit
+
+test-build:
+	./scripts/tests/build.sh
+
+test-boot:
+	./scripts/tests/boot.sh
+
+test-unit:
+	./scripts/tests/unit.sh
 
 # Bootloader
 $(BUILD)/BOOTX64.EFI: boot/uefi/bootloader.c boot/uefi/elf.h | $(BUILD)

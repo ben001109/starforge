@@ -38,3 +38,7 @@ jobs:
         with:
           name: starforge-${{ steps.name.outputs.short_sha }}-${{ steps.name.outputs.utc_date }}
           path: dist/*
+      - name: Test
+        run: make test
+        env:
+          TEST_BOOT: 0

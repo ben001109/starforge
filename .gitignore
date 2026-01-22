@@ -1,5 +1,6 @@
 # build artifacts
 /build/
+/test-logs/
 /iso/
 /*.iso
 /# distribution artifacts
@@ -18,6 +19,9 @@
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/launch.json
+
+# worktrees
+.worktrees/
 
 # OS cruft
 .DS_Store
